@@ -1,103 +1,149 @@
 'use client';
+import { taskAPI } from '@/lib/api';
 import { useState } from 'react';
 
 export default function TaskForm({ onTaskCreated }) {
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [dueDate, setDueDate] = useState('');
+  const [formData, setFormData] = useState({
+    title: '',
+    description: '',
+    dueDate: '',
+  });
   const [isLoading, setIsLoading] = useState(false);
+  const [errors, setErrors] = useState({});
+
+  const validateForm = () => {
+    const newErrors = {};
+    
+    if (!formData.title.trim()) {
+      newErrors.title = 'Title is required';
+    }
+    
+    if (formData.title.length > 100) {
+      newErrors.title = 'Title must be less than 100 characters';
+    }
+    
+    if (formData.description.length > 500) {
+      newErrors.description = 'Description must be less than 500 characters';
+    }
+    
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleChange = (field, value) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
+    // Clear error when user starts typing
+    if (errors[field]) {
+      setErrors(prev => ({ ...prev, [field]: '' }));
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!title.trim()) {
-      alert('Title is required');
-      return;
-    }
+    if (!validateForm()) return;
 
     setIsLoading(true);
 
     try {
-      const response = await fetch('http://localhost:5000/api/tasks', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          title: title.trim(),
-          description: description.trim(),
-          due_date: dueDate || null,
-        }),
-      });
+      const taskPayload = {
+        title: formData.title.trim(),
+        description: formData.description.trim(),
+        due_date: formData.dueDate || null,
+      };
 
-      const result = await response.json();
-
-      if (result.success) {
-        setTitle('');
-        setDescription('');
-        setDueDate('');
-        onTaskCreated(); // Refresh the task list
-      } else {
-        alert('Error creating task: ' + result.error);
-      }
+      await taskAPI.createTask(taskPayload);
+      
+      // Reset form
+      setFormData({ title: '', description: '', dueDate: '' });
+      setErrors({});
+      
+      // Notify parent
+      onTaskCreated();
+      
     } catch (error) {
       console.error('Error creating task:', error);
-      alert('Error creating task. Please try again.');
+      alert(`Error creating task: ${error.message}`);
     } finally {
       setIsLoading(false);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white p-6 rounded-lg shadow-md mb-6 text-gray-900">
+    <form onSubmit={handleSubmit} className="bg-white p-6 text-gray-900 rounded-lg shadow-md mb-6">
       <h2 className="text-xl font-bold mb-4 text-gray-800">Add New Task</h2>
       
       <div className="space-y-4">
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="title" className="block text-sm font-medium text-gray-700 mb-1">
             Title *
           </label>
           <input
+            id="title"
             type="text"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-            className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            value={formData.title}
+            onChange={(e) => handleChange('title', e.target.value)}
+            className={`w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+              errors.title ? 'border-red-500' : 'border-gray-300'
+            }`}
             placeholder="Enter task title"
-            required
+            disabled={isLoading}
           />
+          {errors.title && (
+            <p className="mt-1 text-sm text-red-600">{errors.title}</p>
+          )}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="description" className="block text-sm font-medium text-gray-700 mb-1">
             Description
           </label>
           <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            id="description"
+            value={formData.description}
+            onChange={(e) => handleChange('description', e.target.value)}
+            className={`w-full p-2 border rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+              errors.description ? 'border-red-500' : 'border-gray-300'
+            }`}
             placeholder="Enter task description"
             rows="3"
+            disabled={isLoading}
           />
+          {errors.description && (
+            <p className="mt-1 text-sm text-red-600">{errors.description}</p>
+          )}
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">
+          <label htmlFor="dueDate" className="block text-sm font-medium text-gray-700 mb-1">
             Due Date
           </label>
           <input
+            id="dueDate"
             type="date"
-            value={dueDate}
-            onChange={(e) => setDueDate(e.target.value)}
+            value={formData.dueDate}
+            onChange={(e) => handleChange('dueDate', e.target.value)}
             className="w-full p-2 border border-gray-300 rounded focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+            disabled={isLoading}
           />
         </div>
 
         <button
           type="submit"
           disabled={isLoading}
-          className="w-full bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="w-full bg-blue-500 text-white py-2 px-4 rounded hover:bg-blue-600 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
         >
-          {isLoading ? 'Creating Task...' : 'Create Task'}
+          {isLoading ? (
+            <span className="flex items-center justify-center">
+              <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+              Creating Task...
+            </span>
+          ) : (
+            'Create Task'
+          )}
         </button>
       </div>
     </form>
